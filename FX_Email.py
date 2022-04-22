@@ -16,18 +16,13 @@ recipient_list_to = recipient_list.recipients_to
 recipient_list_cc = recipient_list.recipients_cc
 recipient_list_bcc = recipient_list.recipients_bcc
 
-# Crontab info:
-# 0 12 20,25 * * /usr/bin/python3 <filepath>/FX_Email.py
-
 # Variables Banxico
 ###################
-# Token de Consulta Banxico
 token = os.environ.get("token_banxico")
 
 # Clave de Descarga Banxico
 fix = "SF63528"  # Fecha de Determinacion (FIX)
 obligaciones = "SF60653"  # Para Solventar Obligaciones
-
 
 # Fechas
 ########
@@ -307,8 +302,8 @@ email_body = (
     + "\n    - La diferencia cambiaria a la fecha es de: "
     + str(cambio_fx_redondeado)
     + "%\n"
-    "\nEn términos absolutos: " + str(analisis) + "\n"
-    "\nAnexo el detalle del tipo de cambio para Solventar Obligaciones.\n\n"
+    "\n" + str(analisis) + "\n"
+    "\nAnexo el detalle del tipo de cambio para solventar obligaciones.\n\n"
     + fx_join.to_string(index=True)
     + "\n\nSaludos,"
     "\n\nPablo."
@@ -321,13 +316,13 @@ print(email_body)
 email_address = os.environ.get("email_username")
 email_password = os.environ.get("email_password")
 email_from = os.environ.get("email_username")
-email_smtp = os.environ.get("email_smtp")
+email_smtp = os.environ.get("email_smtp_address")
 
 # Lista de Recipients
 # Usar comas entre "" cuando se usan multiples direcciones o attachments.
-recipients_to = [recipient_list_to]  # ERROR. CHECK
-recipients_cc = [recipient_list_cc]  # ERROR. CHECK
-recipients_bcc = [recipient_list_bcc]  # ERROR. CHECK
+recipients_to = [recipient_list_to]
+recipients_cc = [recipient_list_cc]
+recipients_bcc = [recipient_list_bcc]
 attachments = ["TipoDeCambio.png"]
 subject = "Análisis de Tipo de Cambio"
 
@@ -336,9 +331,9 @@ msg = EmailMessage()
 
 # Email Address Template
 msg["From"] = email_from
-msg["To"] = ",".join(recipients_to)
-msg["Cc"] = ",".join(recipients_cc)
-msg["Bcc"] = ",".join(recipients_bcc)
+msg["To"] = recipient_list_to
+msg["Cc"] = recipient_list_cc
+msg["Bcc"] = recipient_list_bcc
 msg["Subject"] = subject
 msg.set_content(email_body)
 
