@@ -3,15 +3,7 @@ Title
 What it does
 
 How to Use
-- Requirements: Install Pandas
-
-Crear Crontab
-	- pwd
-	- which python3
-	- Crontab test www
-	- crontab -e 
-	- test <pythonpath> <script_path>
-	- Ejecutar script
+- Requirements: View requirements.txt
 
 Checar 
 	- $ ls -al
