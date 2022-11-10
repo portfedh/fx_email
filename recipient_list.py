@@ -1,5 +1,5 @@
 # List used to make a report
-recipients_to = ["portfedh@gmail.com", "portfedh@gmail.com"]
+recipients_to = ["portfedh@gmail.com", "pablo.cruz.lemini@gmail.com"]
 
 recipients_cc = []
 
