@@ -1,39 +1,43 @@
-# Programa para mostrar el tipo de cambio MXN:USD
-# Para un periodo de fechas.
-# Autor: Pablo Cruz Lemini
-
-# Changes: 
-# Class name to GetFx()
-# Add fix series
+# Script to get the official FX USD:MXN from Banxico
+# Can get FIX or Obligaciones
 
 import os
 import requests
 import pandas as pd
 
 class GetFx():
-    api_token = os.environ.get("token_banxico")
-    obligaciones = "SF60653"
-    fix = "SF63528"
-    www = "https://www.banxico.org.mx/SieAPIRest/service/v1/series/"
 
     def __init__(self):
-        pass
+        self.token = os.environ.get("token_banxico")
 
     def get_dates(self):
         print("\nBusqueda de FX para Solventar Obligaciones: \n")
         self.fecha_inicial = str(input("Fecha Inicial de Busqueda yyyy-mm-dd: "))
         self.fecha_final = str(input("Fecha Final de Busqueda yyyy-mm-dd: "))
+    
+    def get_series(self):
+        while True:
+            self.series = str(input("Definir serie de datos (fix, obligaciones): "))
+            if self.series == 'fix':
+                self.series = "SF63528"
+                break
+            elif self.series == 'obligaciones':
+                self.series = "SF60653"
+                break
+            else:
+                print('Error en seleccion. Intenta de nuevo.')
 
-    def get_data(self, serie, fechainicio, fechafin, token):
-        url = (GetFxTerminal.www
-            + serie
+    def get_data(self, series, fechainicio, fechafin):
+        url = (
+            "https://www.banxico.org.mx/SieAPIRest/service/v1/series/"
+            + series
             + "/datos/"
             + fechainicio
             + "/"
             + fechafin
             )
         # Se crea un diccionarion con el token del API
-        headers = {"Bmx-Token": token}
+        headers = {"Bmx-Token": self.token}
         # Hacer un GET request a la pagina del API
         response = requests.get(url, headers=headers)
         # Revisar el codigo de respuesta
@@ -55,7 +59,6 @@ class GetFx():
             return self.df
         # Si el estatus tiene error:
         else:
-            # Imprimir el error
             print(status)
 
     def print_output(self):
@@ -67,11 +70,10 @@ class GetFx():
 if __name__ == '__main__':
     oGetFx = GetFx()
     oGetFx.get_dates()
+    oGetFx.get_series()
     oGetFx.get_data(
-        GetFx.obligaciones,
-        oGetFx.fecha_inicial,
-        oGetFx.fecha_final,
-        GetFx.api_token
-        )
+        series=oGetFx.series,
+        fechainicio=oGetFx.fecha_inicial,
+        fechafin=oGetFx.fecha_final,
+    )
     oGetFx.print_output()
-
