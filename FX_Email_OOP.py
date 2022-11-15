@@ -12,8 +12,8 @@ class SendFxEmail():
         self.get_fx_obligaciones()
         self.get_fx_fix()
         self.create_future_fx_df()
+        self.calculate_future_fx()
         self.debugg_prints()
-        # self.calculate_future_fx()
 
     def get_dates(self):
         self.today = dt.date.today()  # - dt.timedelta(21)  ## Para pruebas
@@ -55,8 +55,8 @@ class SendFxEmail():
     
     def calculate_future_fx(self):
         # Assign Fix values
-        self.fx_fix_1d = self.fx_fix["Tipo de Cambio"].iloc[-1]  # Fix yesterday
-        self.fx_fix_2d = self.fx_fix["Tipo de Cambio"].iloc[-2]  # Fix 2 days ago
+        self.fx_fix_1d = self.fx_fix.df["Tipo de Cambio"].iloc[-1]  # Fix yesterday
+        self.fx_fix_2d = self.fx_fix.df["Tipo de Cambio"].iloc[-2]  # Fix 2 days ago
         # Check if today is Friday
         if self.week_day == 4:
             print('Today is Friday')
@@ -149,6 +149,7 @@ class SendFxEmail():
         self.fx_fix.print_output()
         # create_future_fx_df()
         # calculate_future_fx()
+        print(str(self.fx_obligaciones_f))
         # calculate_f_fx_friday()
         # calculate_f_fx_saturday()
         # calculate_f_fx_other_days()
