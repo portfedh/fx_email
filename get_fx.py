@@ -61,9 +61,22 @@ class GetFx():
         else:
             print(status)
 
-    def print_output(self):
+    def index_datetime(self):
+        # Transform dates to datetime format
+        self.df.index = pd.to_datetime(self.df.index)
+
+        # Volver los valores de fecha un datetime y no un string
+        self.datetime_series = pd.to_datetime(self.df["Fecha"])
+        self.datetime_index = pd.DatetimeIndex(self.datetime_series.values)
+        self.df = (self.df
+                            .set_index(self.datetime_index)
+                            .rename_axis("Fecha", axis=1)
+                            )
+        self.df.drop("Fecha", axis=1, inplace=True)
+
+    def print_output(self, with_index=False):
         print("\n")
-        print(self.df.to_string(index=False))
+        print(self.df.to_string(index=with_index))
         print("\n")
 
 
