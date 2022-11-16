@@ -11,7 +11,7 @@ df2 = pd.DataFrame({
 
 print(df1)
 print(df2)
-df3 = pd.concat([df1, df2], index=[5])
+df3 = pd.concat([df1, df1])
 print(df3)
 
 # actual = db.concat_df(df1, df2, type=1)
