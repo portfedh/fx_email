@@ -1,356 +1,245 @@
-# Importing Modules
-######################
-import datetime as dt
-import requests
+# Imports
+#########
+import get_fx
 import pandas as pd
-import smtplib
+import datetime as dt
+import send_email as se
 import matplotlib.pyplot as plt
-import os
-import imghdr
-from email.message import EmailMessage
-
-# Import recipient list
-#######################
-import recipient_list
-recipient_list_to = recipient_list.recipients_to
-recipient_list_cc = recipient_list.recipients_cc
-recipient_list_bcc = recipient_list.recipients_bcc
-
-# Variables Banxico
-###################
-token = os.environ.get("token_banxico")
-
-# Clave de Descarga Banxico
-fix = "SF63528"  # Fecha de Determinacion (FIX)
-obligaciones = "SF60653"  # Para Solventar Obligaciones
-
-# Fechas
-########
-# Fecha actual
-today = dt.date.today()  # - dt.timedelta(21)  ## Para pruebas
-print("Today is = " + str(today))
-
-# Primer dia del mes
-first_day = today.replace(day=1)
-print("The first day of this month is = " + str(first_day))
-
-# Dia de la semana
-week_day = today.weekday()
-print("Today is day number: " + str(week_day) + "\n(Date range is 0 to 6)")
 
 
-# Funcion de Descarga de datos de Banxico
-#########################################
-def descarga_bmx_serie(serie, fechainicio, fechafin, token):
-    try:
-        # Al site de banxico se le pegan los datos de consulta
-        url = (
-               "https://www.banxico.org.mx/SieAPIRest/service/v1/series/"
-               + serie
-               + "/datos/"
-               + fechainicio
-               + "/"
-               + fechafin
-               )
-        print(url)
+class SendFxEmail():
 
-        # Se le tienen que pasar Headers
-        headers = {"Bmx-Token": token}
-        # Se pasa el token de banxico en un diccionario.
-        response = requests.get(url, headers=headers)
-        # Se pasa como un request con metodo get
-        status = response.status_code
-        # Se le solicita el codigo de respuesta al servidor.
-        if status == 200:
-            # Si el estatus esta Ok armar el dataframe
-            raw_data = response.json()
-            # Se guarda la respuesta como una variable.
-            data = raw_data["bmx"]["series"][0]["datos"]
-            # Se filtra el json
-            # Se accesa el diccionario con los datos
-            global df
-            # Hacemos que la variable global para poder accesarla despues
-            df = pd.DataFrame(data)
-            # Creamos un dataframe con la informacion
-            df["dato"] = df["dato"].apply(lambda x: float(x))
-            # Volvemos los datos floats en vez de strings
-            df["fecha"] = pd.to_datetime(df["fecha"], format="%d/%m/%Y")
-            # Volvemos las fechas a formato fecha
-            df.columns = ["Fecha", "Tipo de Cambio"]
-            # Cambia el nombre de la columna "dato"  por tipo de cambio
-            print("A-Ok")
-            return df
-            # Regresa el dataframe
+    def __init__(self):
+        self.get_dates()
+
+    def get_dates(self):
+        self.today = dt.date.today()  # - dt.timedelta(21)  ## Para pruebas
+        self.first_day_month = self.today.replace(day=1)
+        self.first_day_year = self.today.replace(day=1, month=1)
+        self.week_day = self.today.weekday()  # Date range is 0-6
+        self.day_plus1 = self.today + dt.timedelta(1)
+        self.day_plus2 = self.today + dt.timedelta(2)
+        self.day_plus3 = self.today + dt.timedelta(3)
+        self.day_plus4 = self.today + dt.timedelta(4)
+
+    def get_fx_obligaciones(self, start, end):
+        self.fx_obligaciones = get_fx.GetFx()
+        self.fx_obligaciones.get_data(
+            series="SF60653",
+            fechainicio=str(start),
+            fechafin=str(end),
+        )
+        self.fx_obligaciones.index_datetime()
+
+    def get_fx_fix(self, start, end):
+        self.fx_fix = get_fx.GetFx()
+        self.fx_fix.get_data(
+            series="SF63528",
+            fechainicio=str(start),
+            fechafin=str(end),
+        )
+        self.fx_fix.index_datetime()
+    
+    def calculate_future_fx(self):
+        # Assign Fix values
+        self.fx_fix_1d = self.fx_fix.df["Tipo de Cambio"].iloc[-1]  # Fix yesterday
+        self.fx_fix_2d = self.fx_fix.df["Tipo de Cambio"].iloc[-2]  # Fix 2 days ago
+        # Check if today is Friday
+        if self.week_day == 4:
+            print('Today is Friday')
+            self.calculate_f_fx_friday()
+        # Check if today is Saturday
+        elif self.week_day == 5:
+            print('Today is Saturday')
+            self.calculate_f_fx_saturday()
+        # Day is Monday-Thursday or Sunday
         else:
-            # Si el estatus esta mal imprimir el error en la terminal.
-            print(status)
-    except Exception:
-        print("An exception occurred")
-        print(Exception)
+            print('Today is Monday-Thursday or Sunday')
+            self.calculate_f_fx_other_days()
+
+    def calculate_f_fx_friday(self):
+        # Create an empty dataframe with column names
+        self.fx_obligaciones_f = pd.DataFrame(columns=["Fecha", "Tipo de Cambio"])
+        # Assign future values
+        self.fx_obligaciones_plus1 = {"Fecha": self.day_plus1, "Tipo de Cambio": self.fx_fix_2d}
+        self.fx_obligaciones_plus2 = {"Fecha": self.day_plus2, "Tipo de Cambio": self.fx_fix_2d}
+        self.fx_obligaciones_plus3 = {"Fecha": self.day_plus3, "Tipo de Cambio": self.fx_fix_2d}
+        self.fx_obligaciones_plus4 = {"Fecha": self.day_plus4, "Tipo de Cambio": self.fx_fix_1d}
+        # Append rows
+        self.fx_obligaciones_f = pd.concat([self.fx_obligaciones_f, pd.DataFrame(self.fx_obligaciones_plus1, index=[self.day_plus1])])
+        self.fx_obligaciones_f = pd.concat([self.fx_obligaciones_f, pd.DataFrame(self.fx_obligaciones_plus2, index=[self.day_plus2])])
+        self.fx_obligaciones_f = pd.concat([self.fx_obligaciones_f, pd.DataFrame(self.fx_obligaciones_plus3, index=[self.day_plus3])])
+        # Transform dates to datetime format
+        self.fx_obligaciones_f.index = pd.to_datetime(self.fx_obligaciones_f.index)
+        self.datetime_series = pd.to_datetime(self.fx_obligaciones_f["Fecha"])
+        self.datetime_index = pd.DatetimeIndex(self.datetime_series.values)
+        self.fx_obligaciones_f = (self.fx_obligaciones_f
+                            .set_index(self.datetime_index)
+                            .rename_axis("Fecha", axis=1)
+                            )
+        self.fx_obligaciones_f.drop("Fecha", axis=1, inplace=True)
+
+    def calculate_f_fx_saturday(self):
+        # Create an empty dataframe with column names
+        self.fx_obligaciones_f = pd.DataFrame(columns=["Fecha", "Tipo de Cambio"])
+        # Assign future values
+        self.fx_obligaciones_plus1 = {"Fecha": self.day_plus1, "Tipo de Cambio": self.fx_fix_2d}
+        self.fx_obligaciones_plus2 = {"Fecha": self.day_plus2, "Tipo de Cambio": self.fx_fix_2d}
+        self. fx_obligaciones_plus3 = {"Fecha": self.day_plus3,"Tipo de Cambio": self.fx_fix_1d}
+        # Append rows
+        self.fx_obligaciones_f = pd.concat([self.fx_obligaciones_f, pd.DataFrame(self.fx_obligaciones_plus1, index=[self.day_plus1])])
+        self.fx_obligaciones_f = pd.concat([self.fx_obligaciones_f, pd.DataFrame(self.fx_obligaciones_plus2, index=[self.day_plus2])])
+        self.fx_obligaciones_f = pd.concat([self.fx_obligaciones_f, pd.DataFrame(self.fx_obligaciones_plus3, index=[self.day_plus3])])
+        # Transform dates to datetime format
+        self.fx_obligaciones_f.index = pd.to_datetime(self.fx_obligaciones_f.index)
+        self.datetime_series = pd.to_datetime(self.fx_obligaciones_f["Fecha"])
+        self.datetime_index = pd.DatetimeIndex(self.datetime_series.values)
+        self.fx_obligaciones_f = (self.fx_obligaciones_f
+                            .set_index(self.datetime_index)
+                            .rename_axis("Fecha", axis=1)
+                            )
+        self.fx_obligaciones_f.drop("Fecha", axis=1, inplace=True)
+
+    def calculate_f_fx_other_days(self):
+        # Create an empty dataframe with column names
+        self.fx_obligaciones_f = pd.DataFrame(columns=["Fecha", "Tipo de Cambio"])
+        # Assign future values
+        self.fx_obligaciones_plus1 = {"Fecha": self.day_plus1, "Tipo de Cambio": self.fx_fix_2d}
+        self.fx_obligaciones_plus2 = {"Fecha": self.day_plus2, "Tipo de Cambio": self.fx_fix_1d}
+        # Append rows
+        self.fx_obligaciones_f = pd.concat([self.fx_obligaciones_f, pd.DataFrame(self.fx_obligaciones_plus1, index=[self.day_plus1])])
+        self.fx_obligaciones_f = pd.concat([self.fx_obligaciones_f, pd.DataFrame(self.fx_obligaciones_plus2, index=[self.day_plus2])])
+        # Transform dates to datetime format
+        self.fx_obligaciones_f.index = pd.to_datetime(self.fx_obligaciones_f.index)
+        self.datetime_series = pd.to_datetime(self.fx_obligaciones_f["Fecha"])
+        self.datetime_index = pd.DatetimeIndex(self.datetime_series.values)
+        self.fx_obligaciones_f = (self.fx_obligaciones_f
+                            .set_index(self.datetime_index)
+                            .rename_axis("Fecha", axis=1)
+                            )
+        self.fx_obligaciones_f.drop("Fecha", axis=1, inplace=True)
+
+    def concat_df(self):
+        self.fx_join = pd.concat([self.fx_obligaciones.df, self.fx_obligaciones_f], axis=0)
+
+    def create_graph(self, filename, ymin=None, ymax=None, lineW=1.5, dot=3):
+        # Creating a Figure (empty canvas)
+        self.fig = plt.figure(figsize=(10, 3))
+        # Adding a set of axes to the figure
+        self.axes = self.fig.add_axes([
+                            0.0,  # left
+                            0.0,  # bottom
+                            0.9,  # width
+                            0.9   # height
+                            ]) # (range 0 to 1)
+        # Ploting on that set of axes
+        self.axes.plot(
+                self.fx_join["Tipo de Cambio"],
+                color="red",
+                linewidth=lineW,
+                label="FX Obligaciones",
+                marker="o",
+                markersize=dot,
+                markerfacecolor="red",
+                markeredgewidth=2,
+                markeredgecolor="red",
+                )
+        self.axes.set_xlabel("Fecha")
+        self.axes.set_ylabel("Tipo de Cambio: $ MXN / USD")
+        self.axes.set_ylim( bottom=ymin, top=ymax) # auto=bool
+        self.axes.grid(bool, which="major", axis="y")
+        self.axes.set_title(
+                    "Tipo de Cambio para Solventar Obligaciones",
+                    fontweight="bold",
+                    pad=20)
+        self.axes.legend(loc=0)
+        # Saving the image
+        self.fig.savefig(filename, bbox_inches="tight", dpi=300)
+
+    def calculate_gainloss(self):
+        # Start of month
+        self.fx_inicial = self.fx_join["Tipo de Cambio"].values[0]
+        print("El tipo de cambio a inicio de mes fue de: $" + str(self.fx_inicial))
+        # Current day
+        self.fx_final = self.fx_join["Tipo de Cambio"].values[-1]
+        print("El tipo de cambio a la fecha es de: $" + str(self.fx_final))
+        # Change in FX
+        self.cambio_fx = ((self.fx_final / self.fx_inicial) - 1) * 100
+        self.cambio_fx_redondeado = round(self.cambio_fx, 2)
+        print(("La diferencia cambiaria a la fecha es de: "
+            + str(self.cambio_fx_redondeado)
+            + "%"
+            ))
+
+    def decide_what_to_do(self):
+        self.cambio_fx_absoluto = abs(self.cambio_fx_redondeado)
+        # Threshold de porcentaje de cambio de FX para comprar SHV
+        self.threshold = 0.00  # --> Expresar porcentaje como decimal
+        print("Threshold: " + str(self.threshold * 100) + "%")
+
+        self.comprar_SHV = "Se podría comprar SHV para reducir la ganancia cambiaria."
+        self.vender_SHV = "Se podría vender SHV para aprovechar la perdida cambiaria."
+        self.no_hacer_nada = "La diferencia es demasiado pequeña."
+
+        if self.cambio_fx_absoluto > self.threshold * 100:
+            if self.cambio_fx > 0:
+                self.analisis = self.comprar_SHV
+            else:
+                self.analisis = self.vender_SHV
+        else:
+            self.analisis = self.no_hacer_nada
+        print(self.analisis)
+
+    def build_body(self):
+        self.email_body = (
+            "Hola,"
+            "\n\nEste es el análisis de tipo de cambio a la fecha:"
+            "\n    - El tipo de cambio a inicio de mes fue de: $"
+            + str(self.fx_inicial)
+            + "\n    - El tipo de cambio a la fecha es de: $"
+            + str(self.fx_final)
+            + "\n    - La diferencia cambiaria a la fecha es de: "
+            + str(self.cambio_fx_redondeado)
+            + "%\n"
+            "\n" + str(self.analisis) + "\n"
+            "\nAnexo el detalle del tipo de cambio para solventar obligaciones.\n\n"
+            + self.fx_join.to_string(index=True)
+            + "\n\nSaludos,"
+            "\n\nPablo."
+        )
+
+    def send_email(self, TO, CC, SUBJECT, attchments):
+        self.email = se.SendEmail()
+        self.email.email_content(
+            to=TO,
+            cc=CC,
+            subject=SUBJECT,
+            body=self.email_body
+            )
+        self.email.add_attachments(attchments)
+        self.email.send_mail()
+
+    def debugg_prints(self):
+        # get_dates()
+        print("\nDates in YYYY-MM-DD format.")
+        print("Today is: " + str(self.today))
+        print("First day of this month is: " + str(self.first_day_month))
+        print("First day of the year is: " + str(self.first_day_year))
+        print("Today is day number: " + str(self.week_day) + " (Date range is 0 to 6)\n")
+        # get_fx_obligaciones()
+        print("Obligaciones df:")
+        self.fx_obligaciones.print_output(with_index=True)
+        # get_fx_fix()
+        print("Fix df:")
+        self.fx_fix.print_output(with_index=True)
+        # create_future_fx_df() / calculate_future_fx()
+        print("Future Obligaciones df:")
+        print(str(self.fx_obligaciones_f))
+        # concat_df()
+        print("\n Merged Obligaciones df:")
+        print(str(self.fx_join))
 
 
-# Descargando Tipo de Cambio: Obligaciones
-##########################################
-fx_obligaciones = descarga_bmx_serie(obligaciones,
-                                     str(first_day),
-                                     str(today),
-                                     token)
-df.set_index("Fecha", inplace=True)
 
-
-# # Descargando Tipo de Cambio: FIX
-###################################
-
-# Para la fecha inicial, nos vamos 4 dias hacia atras.
-# Por si la busqueda se ejecuta el primer dia de mes y cae en fin de semana.
-fx_fix = descarga_bmx_serie(fix,
-                            str(first_day - dt.timedelta(4)),
-                            str(today),
-                            token)
-df.set_index("Fecha", inplace=True)
-
-
-# Creando el Dataframe para FX Obligaciones Futuras
-####################################################
-
-# Create an empty dataframe with column names
-fx_obligaciones_f = pd.DataFrame(columns=["Fecha", "Tipo de Cambio"])
-
-# Volver los valores de fecha un datetime y no un string
-datetime_series = pd.to_datetime(fx_obligaciones_f["Fecha"])
-datetime_series = pd.to_datetime(fx_obligaciones_f["Fecha"])
-datetime_index = pd.DatetimeIndex(datetime_series.values)
-fx_obligaciones_f = (fx_obligaciones_f
-                     .set_index(datetime_index)
-                     .rename_axis("Fecha", axis=1)
-                     )
-fx_obligaciones_f.drop("Fecha", axis=1, inplace=True)
-
-
-# Sacando el FX Obligaciones de los proximos dias
-#################################################
-# Fechas Futuras
-day_plus1 = today + dt.timedelta(1)
-day_plus2 = today + dt.timedelta(2)
-day_plus3 = today + dt.timedelta(3)
-day_plus4 = today + dt.timedelta(4)
-
-if week_day == 4:
-    # Codigo si fecha cae en viernes
-    ################################
-    # Valores de tipo de cambio Fix a añadir
-    fx_fix_1d = fx_fix["Tipo de Cambio"].iloc[-1]  # Fix ayer
-    fx_fix_2d = fx_fix["Tipo de Cambio"].iloc[-2]  # Fix antier
-
-    fx_obligaciones_plus1 = {"Tipo de Cambio": fx_fix_2d}
-    fx_obligaciones_plus2 = {"Tipo de Cambio": fx_fix_2d}
-    fx_obligaciones_plus3 = {"Tipo de Cambio": fx_fix_2d}
-    fx_obligaciones_plus4 = {"Tipo de Cambio": fx_fix_1d}
-
-    # Create a new dataframe with these rows
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus1, index=[day_plus1])
-    )
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus2, index=[day_plus2])
-    )
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus3, index=[day_plus3])
-    )
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus4, index=[day_plus4])
-    )
-
-    # Transform dates to datetime format
-    fx_obligaciones_f.index = pd.to_datetime(fx_obligaciones_f.index)
-
-elif week_day == 5:
-    # Codigo si fecha cae en Sabado
-    ###############################
-    # Valores de tipo de cambio Fix a añadir
-    fx_fix_1d = fx_fix["Tipo de Cambio"].iloc[-1]  # Fix ayer
-    fx_fix_2d = fx_fix["Tipo de Cambio"].iloc[-2]  # Fix antier
-
-    fx_obligaciones_plus1 = {"Tipo de Cambio": fx_fix_2d}
-    fx_obligaciones_plus2 = {"Tipo de Cambio": fx_fix_2d}
-    fx_obligaciones_plus3 = {"Tipo de Cambio": fx_fix_1d}
-
-    # Create a new dataframe with these rows
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus1, index=[day_plus1])
-    )
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus2, index=[day_plus2])
-    )
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus3, index=[day_plus3])
-    )
-
-    # Transform dates to datetime format
-    fx_obligaciones_f.index = pd.to_datetime(fx_obligaciones_f.index)
-
-else:
-    # Codigo si fecha cae en Lunes-Jueves o Domingo
-    ###############################################
-    # Valores de tipo de cambio Fix a añadir
-    fx_fix_1d = fx_fix["Tipo de Cambio"].iloc[-1]  # Fix ayer
-    fx_fix_2d = fx_fix["Tipo de Cambio"].iloc[-2]  # Fix antier
-
-    fx_obligaciones_plus1 = {"Tipo de Cambio": fx_fix_2d}
-    fx_obligaciones_plus2 = {"Tipo de Cambio": fx_fix_1d}
-
-    # Añadir valores al dataframe fx_obligaciones_f
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus1, index=[day_plus1])
-    )
-    fx_obligaciones_f = fx_obligaciones_f.append(
-        pd.DataFrame(fx_obligaciones_plus2, index=[day_plus2])
-    )
-
-    # Transformar valores a datetime
-    fx_obligaciones_f.index = pd.to_datetime(fx_obligaciones_f.index)
-
-
-# Juntando Fx Obligaciones con Fx Obligaciones Futuras
-######################################################
-# Juntar fx_obligaciones y fx_obligaciones_f
-fx_join = pd.concat([fx_obligaciones, fx_obligaciones_f], axis=0)
-
-# Creando la grafica
-#####################
-# Creating a Figure (empty canvas)
-fig = plt.figure(figsize=(10, 3))
-
-# Adding a set of axes to the figure
-axes = fig.add_axes([0.0,  # left
-                     0.0,  # bottom
-                     0.9,  # width
-                     0.9]  # height
-                    )  # (range 0 to 1)
-
-# Ploting on that set of axes
-axes.plot(
-          fx_join["Tipo de Cambio"],
-          color="red",
-          linewidth=1.5,
-          label="FX Obligaciones",
-          marker="o",
-          markersize=4,
-          markerfacecolor="red",
-          markeredgewidth=2,
-          markeredgecolor="red",
-          )
-axes.set_xlabel("Fecha")
-axes.set_ylabel("Tipo de Cambio: $ MXN / USD")
-axes.set_ylim(auto=bool)
-axes.grid(bool, which="major", axis="y")
-axes.set_title("Tipo de Cambio para Solventar Obligaciones",
-               fontweight="bold",
-               pad=20)
-axes.legend(loc=0)
-
-# Guardando la imagen
-fig.savefig("TipoDeCambio.png", bbox_inches="tight", dpi=300)
-
-
-# Calculando la Ganancia o Perdida Cambiaria
-###############################################
-fx_inicial = fx_join["Tipo de Cambio"].values[0]
-print("El tipo de cambio a inicio de mes fue de: $" + str(fx_inicial))
-
-fx_final = fx_join["Tipo de Cambio"].values[-1]
-print("El tipo de cambio a la fecha es de: $" + str(fx_final))
-
-cambio_fx = ((fx_final / fx_inicial) - 1) * 100
-cambio_fx_redondeado = round(cambio_fx, 2)
-
-print(("La diferencia cambiaria a la fecha es de: "
-       + str(cambio_fx_redondeado)
-       + "%")
-      )
-
-
-# Analisis de conveniencia usando Threshold
-############################################
-cambio_fx_absoluto = abs(cambio_fx_redondeado)
-# Threshold de porcentaje de cambio de FX para comprar SHV
-threshold = 0.00  # --> Expresar porcentaje como decimal
-print("Threshold: " + str(threshold * 100) + "%")
-
-comprar_SHV = "Se podría comprar SHV para reducir la ganancia cambiaria."
-vender_SHV = "Se podría vender SHV para aprovechar la perdida cambiaria."
-no_hacer_nada = "La diferencia es demasiado pequeña."
-
-if cambio_fx_absoluto > threshold * 100:
-    if cambio_fx > 0:
-        analisis = comprar_SHV
-    else:
-        analisis = vender_SHV
-else:
-    analisis = no_hacer_nada
-print(analisis)
-
-# Creando el Email
-##################
-email_body = (
-    "Hola,"
-    "\n\nEste es el análisis de tipo de cambio a la fecha:"
-    "\n    - El tipo de cambio a inicio de mes fue de: $"
-    + str(fx_inicial)
-    + "\n    - El tipo de cambio a la fecha es de: $"
-    + str(fx_final)
-    + "\n    - La diferencia cambiaria a la fecha es de: "
-    + str(cambio_fx_redondeado)
-    + "%\n"
-    "\n" + str(analisis) + "\n"
-    "\nAnexo el detalle del tipo de cambio para solventar obligaciones.\n\n"
-    + fx_join.to_string(index=True)
-    + "\n\nSaludos,"
-    "\n\nPablo."
-)
-
-print(email_body)
-
-# Enviando el Email
-###################
-email_address = os.environ.get("email_username")
-email_password = os.environ.get("email_password")
-email_from = os.environ.get("email_username")
-email_smtp = os.environ.get("email_smtp_address")
-
-# Lista de Recipients
-# Usar comas entre "" cuando se usan multiples direcciones o attachments.
-recipients_to = [recipient_list_to]
-recipients_cc = [recipient_list_cc]
-recipients_bcc = [recipient_list_bcc]
-attachments = ["TipoDeCambio.png"]
-subject = "Análisis de Tipo de Cambio"
-
-# Email Address Object
-msg = EmailMessage()
-
-# Email Address Template
-msg["From"] = email_from
-msg["To"] = recipient_list_to
-msg["Cc"] = recipient_list_cc
-msg["Bcc"] = recipient_list_bcc
-msg["Subject"] = subject
-msg.set_content(email_body)
-
-# Adding Email attachments:
-for file in attachments:
-    with open(file, "rb") as f:
-        file_data = f.read()
-        file_type = imghdr.what(f.name)
-        file_name = f.name
-    msg.add_attachment(
-        file_data, maintype="image", subtype=file_type, filename=file_name
-    )
-
-# Sending the Email
-# Usar("smtp.gmail.com", 465) si se envía desde gmail.
-with smtplib.SMTP_SSL(email_smtp, 465) as smtp:
-    smtp.login(email_address, email_password)
-    smtp.send_message(msg)
-    print("Email Sent")
-    print(today)
+if __name__ == '__main__':
+    pass
