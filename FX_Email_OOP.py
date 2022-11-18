@@ -3,6 +3,8 @@
 import get_fx
 import pandas as pd
 import datetime as dt
+import send_email as se
+import matplotlib.pyplot as plt
 
 
 class SendFxEmail():
@@ -13,7 +15,12 @@ class SendFxEmail():
         self.get_fx_fix()
         self.calculate_future_fx()
         self.concat_df()
+        self.create_graph()
         self.debugg_prints()
+        self.calculate_gainloss()
+        self.decide_what_to_do()
+        self.build_body()
+        self.send_email()
 
     def get_dates(self):
         self.today = dt.date.today()  # - dt.timedelta(21)  ## Para pruebas
@@ -125,16 +132,103 @@ class SendFxEmail():
         self.fx_join = pd.concat([self.fx_obligaciones.df, self.fx_obligaciones_f], axis=0)
 
     def create_graph(self):
-        pass
+        # Creating a Figure (empty canvas)
+        self.fig = plt.figure(figsize=(10, 3))
+
+        # Adding a set of axes to the figure
+        self.axes = self.fig.add_axes([
+                            0.0,  # left
+                            0.0,  # bottom
+                            0.9,  # width
+                            0.9   # height
+                            ]) # (range 0 to 1)
+
+        # Ploting on that set of axes
+        self.axes.plot(
+                self.fx_join["Tipo de Cambio"],
+                color="red",
+                linewidth=1.5,
+                label="FX Obligaciones",
+                marker="o",
+                markersize=3,
+                markerfacecolor="red",
+                markeredgewidth=2,
+                markeredgecolor="red",
+                )
+        self.axes.set_xlabel("Fecha")
+        self.axes.set_ylabel("Tipo de Cambio: $ MXN / USD")
+        self.axes.set_ylim(auto=bool)  # bottom=0, top=30)
+        self.axes.grid(bool, which="major", axis="y")
+        self.axes.set_title("Tipo de Cambio para Solventar Obligaciones",
+                    fontweight="bold",
+                    pad=20)
+        self.axes.legend(loc=0)
+
+        # Guardando la imagen
+        self.fig.savefig("TipoDeCambio.png", bbox_inches="tight", dpi=300)
 
     def calculate_gainloss(self):
-        pass
+        # Start of month
+        self.fx_inicial = self.fx_join["Tipo de Cambio"].values[0]
+        print("El tipo de cambio a inicio de mes fue de: $" + str(self.fx_inicial))
+        # Current day
+        self.fx_final = self.fx_join["Tipo de Cambio"].values[-1]
+        print("El tipo de cambio a la fecha es de: $" + str(self.fx_final))
+        # Change in FX
+        self.cambio_fx = ((self.fx_final / self.fx_inicial) - 1) * 100
+        self.cambio_fx_redondeado = round(self.cambio_fx, 2)
+        print(("La diferencia cambiaria a la fecha es de: "
+            + str(self.cambio_fx_redondeado)
+            + "%"
+            ))
 
     def decide_what_to_do(self):
-        pass
+        self.cambio_fx_absoluto = abs(self.cambio_fx_redondeado)
+        # Threshold de porcentaje de cambio de FX para comprar SHV
+        self.threshold = 0.00  # --> Expresar porcentaje como decimal
+        print("Threshold: " + str(self.threshold * 100) + "%")
+
+        self.comprar_SHV = "Se podría comprar SHV para reducir la ganancia cambiaria."
+        self.vender_SHV = "Se podría vender SHV para aprovechar la perdida cambiaria."
+        self.no_hacer_nada = "La diferencia es demasiado pequeña."
+
+        if self.cambio_fx_absoluto > self.threshold * 100:
+            if self.cambio_fx > 0:
+                self.analisis = self.comprar_SHV
+            else:
+                self.analisis = self.vender_SHV
+        else:
+            self.analisis = self.no_hacer_nada
+        print(self.analisis)
+
+    def build_body(self):
+        self.email_body = (
+            "Hola,"
+            "\n\nEste es el análisis de tipo de cambio a la fecha:"
+            "\n    - El tipo de cambio a inicio de mes fue de: $"
+            + str(self.fx_inicial)
+            + "\n    - El tipo de cambio a la fecha es de: $"
+            + str(self.fx_final)
+            + "\n    - La diferencia cambiaria a la fecha es de: "
+            + str(self.cambio_fx_redondeado)
+            + "%\n"
+            "\n" + str(self.analisis) + "\n"
+            "\nAnexo el detalle del tipo de cambio para solventar obligaciones.\n\n"
+            + self.fx_join.to_string(index=True)
+            + "\n\nSaludos,"
+            "\n\nPablo."
+        )
 
     def send_email(self):
-        pass
+        self.email = se.SendEmail()
+        self.email.email_content(
+            to="portfedh@gmail.com",
+            cc="pablo.cruz@gmail.com",
+            subject="Análisis de Tipo de Cambio",
+            body=self.email_body
+            )
+        self.email.add_attachments(["TipoDeCambio.png"])
+        self.email.send_mail()
 
     def debugg_prints(self):
         # get_dates()
@@ -155,7 +249,6 @@ class SendFxEmail():
         # concat_df()
         print("\n Merged Obligaciones df:")
         print(str(self.fx_join))
-
 
 
 if __name__ == '__main__':
