@@ -41,6 +41,8 @@ If the change is lower than the threshold value, it will recommend to wait.
 
 Finally, it will build an email body with the FX information for the month and the recommendation. It will then send the email to a recipient, along with the attached graphs.
 
+You can find an example email [here.](/example_email.pdf)
+
 ## How it works
 
 The file is separated in to three different scripts:
