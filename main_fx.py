@@ -23,5 +23,5 @@ object_1.send_email(
     TO="portfedh@gmail.com",
     CC="pablo.cruz@gmail.com",
     SUBJECT="Análisis de Tipo de Cambio",
-    attchments=["TipoDeCambioMes.png", "TipoDeCambioYTD.png", "TipoDeCambioYtdAbs.png"],
+    attchments=["TipoDeCambioMes.png", "TipoDeCambioYtd.png", "TipoDeCambioYtdAbs.png"],
 )

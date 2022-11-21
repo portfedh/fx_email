@@ -240,6 +240,5 @@ class SendFxEmail():
         print(str(self.fx_join))
 
 
-
 if __name__ == '__main__':
     pass
