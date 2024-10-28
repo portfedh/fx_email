@@ -1,4 +1,3 @@
-
 # Email that sends the official USD:MXN rate
 
 ## What it does
@@ -13,7 +12,7 @@ It will then create three separate graphs showing:
 
 1. The exchange rate for the current month and the next 2-4 days.
 
-2. The echange rate for the current year.
+2. The exchange rate for the current year.
 
 3. The exchange rate for the current year.
 
@@ -31,11 +30,11 @@ Graph of exchange rate for the current year:
 
 Graph of exchange rate for the current year with Y axis minimum at 0:
 
-![Current Year Exchange Rate Yaxis in 0](/TipoDeCambioYtdAbs.png)
+![Current Year Exchange Rate Y axis in 0](/TipoDeCambioYtdAbs.png)
 
 After that it will calculate the Gain or Loss values for the month, both in absolute terms and as a percentage change. It will then compare against a threshold value.
 
-If the change is higher than the threshold, it will recomend to buy or sell a security to avoid paying the FX gain or o create an FX loss.
+If the change is higher than the threshold, it will recommend to buy or sell a security to avoid paying the FX gain or o create an FX loss.
 
 If the change is lower than the threshold value, it will recommend to wait.
 
@@ -67,18 +66,18 @@ To execute the code you will need to install the following libraries:
 - matplotlib
 - import imghdr
 
-The libraries installed in my virtual enviroment and their versions are in the requirements.txt file.
+The libraries installed in my virtual environment and their versions are in the requirements.txt file.
 
 To be able to send an email, you will also have to get an email token and its smtp address. If you use gmail, you can find a tutorial on how to do that [here.](https://realpython.com/python-send-email/)
 
-You will also need to hard code  your username and password in the send_email.py script, or save it as an enviroment variable in your computer and access it with the os.environ.get() function. This second approach is much more secure and highly recommended.
+You will also need to hard code your username and password in the send_email.py script, or save it as an environment variable in your computer and access it with the os.environ.get() function. This second approach is much more secure and highly recommended.
 
 To change the email recipient list or the attachment names, change the code in main_fix.py
 
 To execute the script automatically, you can run a cron service or its equivalent and automate the execution of the script on a monthly basis.
 
-## How to Use
+## Why is this useful?
 
 I use the script to monitor the amount of cash in USD denominated accounts.
 
-Any Mexican resident or Mexcan Company will calculate FX gains on a monthly basis, and will have to pay taxes accordingnly. By monitoring FX gains or losses, you can minimize the amount of cash succeptible to FX gains and thus have a more efficient cash managment process.
+Any Mexican resident or Mexican Company will calculate FX gains on a monthly basis, and will have to pay taxes accordingly. By monitoring FX gains or losses, you can minimize the amount of cash susceptible to FX gains and thus have a more efficient cash management process.
